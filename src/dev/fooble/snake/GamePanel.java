@@ -60,10 +60,13 @@ public class GamePanel extends JPanel implements ActionListener {
     private void draw(Graphics graphics) {
         if(running) {
             // Grid
-            graphics.setColor(new Color(90, 175, 125));
-            for(int i = 0; i < SCREEN_HEIGHT / TILE_SIZE; i++) {
-                graphics.drawLine(i * TILE_SIZE, 0, i * TILE_SIZE, SCREEN_HEIGHT);
-                graphics.drawLine(0, i * TILE_SIZE, SCREEN_WIDTH, i * TILE_SIZE);
+            graphics.setColor(new Color(117, 189, 147));
+            for(int row = 0; row < SCREEN_HEIGHT / TILE_SIZE; row++) {
+                for(int col = 0; col < SCREEN_WIDTH / TILE_SIZE; col++) {
+                    if((row + col) % 2 == 0) {
+                        graphics.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    }
+                }
             }
 
             // Aple
