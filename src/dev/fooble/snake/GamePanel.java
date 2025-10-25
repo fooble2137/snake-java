@@ -28,27 +28,52 @@ public class GamePanel extends JPanel implements ActionListener {
     private char direction = 'R';
 
     private boolean running = false;
+    private boolean started = false;
+    private boolean paused = false;
 
     private Timer timer;
     private final Random random;
+    private final UI ui;
 
     public GamePanel() {
         random = new Random();
+        ui = new UI(SCREEN_WIDTH, SCREEN_HEIGHT);
 
         this.setPreferredSize(new Dimension(SCREEN_WIDTH, SCREEN_HEIGHT));
         this.setBackground(new Color(127, 194, 155));
         this.addKeyListener(new SnakeKeyAdapter());
         this.setFocusable(true);
-
-        startGame();
     }
 
     private void startGame() {
+        bodyParts = 6;
+        applesEaten = 0;
+        direction = 'R';
+        paused = false;
+
+        for(int i = 0; i < bodyParts; i++) {
+            x[i] = 0;
+            y[i] = 0;
+        }
+
         newApple();
         running = true;
+        started = true;
 
         timer = new Timer(DELAY, this);
         timer.start();
+    }
+
+    private void togglePause() {
+        if(running && started) {
+            paused = !paused;
+            if(paused) {
+                timer.stop();
+            } else {
+                timer.start();
+            }
+            repaint();
+        }
     }
 
     @Override
@@ -58,7 +83,9 @@ public class GamePanel extends JPanel implements ActionListener {
     }
 
     private void draw(Graphics graphics) {
-        if(running) {
+        Graphics2D g2d = (Graphics2D) graphics;
+
+        if(running && started) {
             // Grid
             graphics.setColor(new Color(117, 189, 147));
             for(int row = 0; row < SCREEN_HEIGHT / TILE_SIZE; row++) {
@@ -69,31 +96,64 @@ public class GamePanel extends JPanel implements ActionListener {
                 }
             }
 
-            // Aple
+            // Apple
             graphics.setColor(new Color(249, 57, 67));
             graphics.fillOval(appleX, appleY, TILE_SIZE, TILE_SIZE);
+            graphics.setColor(new Color(255, 150, 150));
+            graphics.fillOval(appleX + 5, appleY + 5, 8, 8);
 
             // Snake
             for(int i = 0; i < bodyParts; i++) {
-                if(i == 0) graphics.setColor(new Color(255, 187, 51));
-                else graphics.setColor(new Color(255, 200, 87));
+                if(i == 0) {
+                    // Snake head
+                    graphics.setColor(new Color(255, 187, 51));
+                    graphics.fillRect(x[i], y[i], TILE_SIZE, TILE_SIZE);
 
-                graphics.fillRect(x[i], y[i], TILE_SIZE, TILE_SIZE);
+                    // Eyes based on direction
+                    graphics.setColor(Color.BLACK);
+                    int eyeSize = 4;
+                    switch(direction) {
+                        case 'R' -> {
+                            graphics.fillOval(x[i] + 15, y[i] + 7, eyeSize, eyeSize);
+                            graphics.fillOval(x[i] + 15, y[i] + 14, eyeSize, eyeSize);
+                        }
+                        case 'L' -> {
+                            graphics.fillOval(x[i] + 6, y[i] + 7, eyeSize, eyeSize);
+                            graphics.fillOval(x[i] + 6, y[i] + 14, eyeSize, eyeSize);
+                        }
+                        case 'U' -> {
+                            graphics.fillOval(x[i] + 7, y[i] + 6, eyeSize, eyeSize);
+                            graphics.fillOval(x[i] + 14, y[i] + 6, eyeSize, eyeSize);
+                        }
+                        case 'D' -> {
+                            graphics.fillOval(x[i] + 7, y[i] + 15, eyeSize, eyeSize);
+                            graphics.fillOval(x[i] + 14, y[i] + 15, eyeSize, eyeSize);
+                        }
+                    }
+                } else {
+                    // Snake body
+                    graphics.setColor(new Color(255, 200, 87));
+                    graphics.fillRect(x[i], y[i], TILE_SIZE, TILE_SIZE);
+
+                    // Border for body segments
+                    graphics.setColor(new Color(255, 187, 51));
+                    graphics.drawRect(x[i], y[i], TILE_SIZE - 1, TILE_SIZE - 1);
+                }
             }
-        }
 
-        // Text
-        final Graphics2D graphics2D = (Graphics2D) graphics;
+            // HUD
+            ui.drawGameHUD(g2d, applesEaten);
 
-        graphics2D.setColor(new Color(122, 40, 203));
-        graphics2D.setFont(new Font("Calibri", Font.BOLD, 35));
-        graphics2D.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
-        final FontMetrics metrics = getFontMetrics(graphics2D.getFont());
-        graphics2D.drawString("Score: " + applesEaten, (SCREEN_WIDTH - metrics.stringWidth("Score: " + applesEaten)) / 2, graphics2D.getFont().getSize());
-
-        if(!running) {
-            gameOver((Graphics2D) graphics);
+            // Pause screen if paused
+            if(paused) {
+                ui.drawPauseScreen(g2d, applesEaten);
+            }
+        } else if(!started) {
+            // Main menu
+            ui.drawMainMenu(g2d);
+        } else {
+            // Game over screen
+            ui.drawGameOver(g2d, applesEaten);
         }
     }
 
@@ -143,18 +203,9 @@ public class GamePanel extends JPanel implements ActionListener {
         if(!running) timer.stop();
     }
 
-    private void gameOver(Graphics2D graphics2D) {
-        graphics2D.setColor(new Color(122, 40, 203));
-        graphics2D.setFont(new Font("Calibri", Font.BOLD, 75));
-        graphics2D.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
-        final FontMetrics metrics = getFontMetrics(graphics2D.getFont());
-        graphics2D.drawString("Game Over", (SCREEN_WIDTH - metrics.stringWidth("Game Over")) / 2, SCREEN_HEIGHT / 2);
-    }
-
     @Override
     public void actionPerformed(ActionEvent e) {
-        if(running) {
+        if(running && !paused) {
             move();
             checkApple();
             checkCollisions();
@@ -167,18 +218,44 @@ public class GamePanel extends JPanel implements ActionListener {
 
         @Override
         public void keyPressed(KeyEvent e) {
-            switch(e.getKeyCode()) {
-                case KeyEvent.VK_LEFT, KeyEvent.VK_A -> {
-                    if(direction != 'R') direction = 'L';
+            // Start game from main menu
+            if(!started && e.getKeyCode() == KeyEvent.VK_SPACE) {
+                startGame();
+                return;
+            }
+
+            // Restart game from game over screen
+            if(!running && started && e.getKeyCode() == KeyEvent.VK_SPACE) {
+                startGame();
+                return;
+            }
+
+            // Toggle pause
+            if(e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                if(!started) {
+                    System.exit(0);
+                } else if(!running) {
+                    System.exit(0);
+                } else {
+                    togglePause();
                 }
-                case KeyEvent.VK_RIGHT, KeyEvent.VK_D -> {
-                    if(direction != 'L') direction = 'R';
-                }
-                case KeyEvent.VK_UP, KeyEvent.VK_W -> {
-                    if(direction != 'D') direction = 'U';
-                }
-                case KeyEvent.VK_DOWN, KeyEvent.VK_S -> {
-                    if(direction != 'U') direction = 'D';
+                return;
+            }
+
+            if(!paused) {
+                switch(e.getKeyCode()) {
+                    case KeyEvent.VK_LEFT, KeyEvent.VK_A -> {
+                        if(direction != 'R') direction = 'L';
+                    }
+                    case KeyEvent.VK_RIGHT, KeyEvent.VK_D -> {
+                        if(direction != 'L') direction = 'R';
+                    }
+                    case KeyEvent.VK_UP, KeyEvent.VK_W -> {
+                        if(direction != 'D') direction = 'U';
+                    }
+                    case KeyEvent.VK_DOWN, KeyEvent.VK_S -> {
+                        if(direction != 'U') direction = 'D';
+                    }
                 }
             }
         }
